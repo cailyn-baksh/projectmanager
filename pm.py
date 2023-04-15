@@ -64,6 +64,50 @@ class ProjectManager:
 
         self.logfile.close()
 
+    def resolve_project(self, name):
+        """
+        Resolves a project name string into an entry in self.config
+
+        name is the project name string to resolve
+        Returns the resolved name, or None if the name does not resolve to anything
+        """
+        if name == "":
+            return None
+
+        if name[0] == '^':
+            # Recall history
+            # The syntax of this string is ^n where n is a signed integer
+            # indicating how many lines back in the output log to search. A
+            # positive integer counts backwards from the end of the file, and a
+            # negative integer counts forwards from the start of the file.
+            # Eg: ^1 refers to the last entry
+            # Eg: ^-1 refers to the first entry
+            # (if youre whining & shitting your pants about it "not being zero
+            # indexed" shut the fuck up dipshit the history log is a circular
+            # array it is zero indexed just the 0th index refers to the current
+            # entry which has not yet been written and thus cannot be read)
+
+            
+            # Resolve index to recall from history
+            history_index = 0
+
+            if len(name) <= 1:
+                # just the string ^ resolves to the last entry
+                history_index = 1
+            else:
+                try:
+                    history_index = int(name[1:])
+                except ValueError:
+                    # Invalid string
+                    return None
+
+            
+        else:
+            if name in self.config.sections() and name not in self.RESERVED_CONFIG_NAMES:
+                return name
+            else:
+                return None
+
     def list_projects(self):
         """
         Lists all projects
@@ -105,6 +149,7 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="cmd", title="Commands", help="Run --help on each subcommand for specific usage information")
 
     parser_update_cmd = subparsers.add_parser("update", help="Check for and install updates")
+    parser_update_cmd.add_argument("-y", action="store_false", dest="confirm_install", help="Do not prompt before installing updates")
 
     parser_list_cmd = subparsers.add_parser("list", help="List all the registered project")
 
@@ -122,7 +167,7 @@ if __name__ == "__main__":
 
     with ProjectManager(args.config) as pm:
         if args.cmd == "update":
-            updater.update()
+            updater.update(args.confirm_install)
         elif args.cmd == "list":
             pm.list_projects()
         elif args.cmd == "add":
