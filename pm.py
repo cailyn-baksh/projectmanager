@@ -92,6 +92,9 @@ if __name__ == "__main__":
     cli = CLI(prog="ProgramManager",
               description="Helps manage your projects")
 
+    # TODO: add ProjectManager object here
+    pm = None
+
     # Basic Args
     cli.add_argument(
         "--version", action="version", version=f"%(prog)s v{VERSION}"
@@ -115,57 +118,64 @@ if __name__ == "__main__":
             help="Do not prompt before installing updates"
         )
     ])
-    def update(args):
+    def subcmd_update(args):
         """Check for and install updates"""
+        updater.update(args.confirm_install)
+
+    @cli.subcommand()
+    def subcmd_list(args):
+        """List all the registered projects"""
+        pm.list_projects()
+
+    @cli.subcommand([
+        CLI.argument(
+            "name", help="The name of the project. This name must be unique."
+        )
+    ])
+    def subcmd_add(args):
+        """Add a project"""
+        pm.add_project(args.name, args.path)
+
+    @cli.subcommand()
+    def subcmd_random(args):
+        """Pick a random project"""
+        pm.random_project()
+
+    @cli.subcommand([
+        CLI.argument(
+            "project", help="The project to set the property for"
+        ),
+        CLI.argument(
+            "property", help="The property value to set for the given project"
+        )
+    ])
+    def subcmd_set(args):
+        """Set a property"""
         pass
 
-    # parser_list_cmd = subparsers.add_parser(
-    #     "list", help="List all the registered project"
-    # )
-
-    # parser_add_cmd = subparsers.add_parser("add", help="Add a project")
-    # parser_add_cmd.add_argument(
-    #     "name", help="The name of the project. This name must be unique."
-    # )
-    # parser_add_cmd.add_argument("path", help="The path to the project.")
-
-    # parser_rand_cmd = subparsers.add_parser(
-    #     "random", help="Pick a random project"
-    # )
-
-    # parser_set_cmd = subparsers.add_parser("set", help="Set a value")
-    # parser_set_cmd.add_argument(
-    #     "project", help="The project to set the value for"
-    # )
-    # parser_set_cmd.add_argument(
-    #     "property", choices=["active", "inactive"],
-    #     help="The property value to set for the given project"
-    # )
-
-    # parser_idea_cmd = subparsers.add_parser(
-    #     "ideas", help="Store ideas for future projects"
-    # )
-    # parser_set_cmd.add_argument(
-    #     "cmd", default="list", choices=["list", "add", "remove", "show"],
-    #     help="The subcommand to run on "
-    # )
-
-    #parser_set_cmd.add_argument("list", help="List the project ideas")
-    #parser_set_cmd.add_argument("new", help="Add a new idea")
-    #parser_set_cmd.add_argument(
-    #    "remove", help="Remove an idea from the idea database"
-    #)
-    #parser_set_cmd.add_argument("show", help="Show a
+    @cli.subcommand([
+        CLI.argument(
+            "ideacmd", metavar="CMD", default="list",
+            choices=["list", "add", "remove", "show"],
+            help="The idea subcommand to run"
+        )
+    ])
+    def subcmd_ideas(args):
+        """Store ideas for future projects"""
+        match args.ideacmd:
+            case "list":
+                pass
+            case "add":
+                pass
+            case "remove":
+                pass
+            case "show":
+                pass
+            case _:
+                # Not a valid command; raise error
+                pass
 
     args = cli.parse_args()
 
-    with manager.ProjectManager(args.config) as pm:
-        if args.cmd == "update":
-            updater.update(args.confirm_install)
-        elif args.cmd == "list":
-            pm.list_projects()
-        elif args.cmd == "add":
-            pm.add_project(args.name, args.path)
-        elif args.cmd == "random":
-            pm.random_project()
+    args.func(args)
 
