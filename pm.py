@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
-import configparser
+import inspect
 import io
-import os
-import os.path
-import random
-import subprocess
-import sys
-import time
 
+import manager
 import updater
 
 VERSION = "0.1.0"
+
 
 class Tee(io.TextIOBase):
     """
@@ -28,144 +24,142 @@ class Tee(io.TextIOBase):
         self.file2.write(s)
 
 
-class ProjectManager:
+class CLI(argparse.ArgumentParser):
     """
-    The main application class
+    CLI based on argparse.ArgumentParser.
+
+    Usage: Instantiate the cli, then define functions to handle parsing the
+    arguments using the decorators provided by this class.
+
+    Examples:
     """
+    subparsers = None
 
-    RESERVED_CONFIG_NAMES = ["DEFAULT", "GLOBAL"]
+    def __init__(self, **kwargs):
+        """See argparse.ArgumentParser.__init__"""
+        super().__init__(**kwargs)
 
-    def __init__(self, config_dir):
+    def subcommand(self, args=[]):
         """
-        Construct an instance of the application, using the given config dir
+        Create a subcommand along with a function to parse the args.
+
+        The function should be named the same as the subcommand's name,
+        prefixed with `subcmd_`. If this is not the case, then the function's
+        full name is used as teh subcommand name.
+
+        The subcommand will use the function's docstring as the help string.
+        The first line will be shown in the general --help option, and the
+        entire string will be shown in the subcommand's specific --help.
         """
-        self.config = configparser.ConfigParser()
-        self.config_dir = os.path.abspath(os.path.expanduser(config_dir))
 
-        # Create the config dir if it doesnt exist
-        if not os.path.isdir(self.config_dir):
-            os.mkdir(self.config_dir)
+        if self.subparsers is None:
+            # Make sure that subparsers has been initialized
+            self.subparsers = self.add_subparsers(
+                title="Subcommands", dest="cmd",
+                help="Use `--help` for specific help information for each"
+                " subcommand."
+            )
 
-        # Load the config file if it exists
-        if os.path.isfile(f"{self.config_dir}/config.ini"):
-            self.config.read(f"{self.config_dir}/config.ini")
+        def decorator(func):
+            # Get the docstring for func
+            docstring = inspect.getdoc(func) or ""
+            short_help = docstring.split('\n')[0]
 
-        # Create the global config if it doesnt exist
-        if "GLOBAL" not in self.config:
-            self.config["GLOBAL"] = {}
+            # Create the subcommand parser
+            parser = self.subparsers.add_parser(
+                func.__name__.removeprefix("subcmd_"),
+                help=short_help,
+                description=docstring
+            )
 
-    def __enter__(self):
-        self.logfile = open(f"{self.config_dir}/output.log", "a+")
-        return self
+            # Add the subcommand's arguments
+            for arg in args:
+                parser.add_argument(*arg[0], **arg[1])
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        with open(f"{self.config_dir}/config.ini", "w") as f:
-            self.config.write(f)
+            # Apply the parsing function
+            parser.set_defaults(func=func)
 
-        self.logfile.close()
+        return decorator
 
-    def resolve_project(self, name):
-        """
-        Resolves a project name string into an entry in self.config
+    @staticmethod
+    def argument(*name_or_flags, **kwargs):
+        """Construct an arguemnt to pass to @subcommand"""
+        return ([*name_or_flags], kwargs)
 
-        name is the project name string to resolve
-        Returns the resolved name, or None if the name does not resolve to anything
-        """
-        if name == "":
-            return None
-
-        if name[0] == '^':
-            # Recall history
-            # The syntax of this string is ^n where n is a signed integer
-            # indicating how many lines back in the output log to search. A
-            # positive integer counts backwards from the end of the file, and a
-            # negative integer counts forwards from the start of the file.
-            # Eg: ^1 refers to the last entry
-            # Eg: ^-1 refers to the first entry
-            # (if youre whining & shitting your pants about it "not being zero
-            # indexed" shut the fuck up dipshit the history log is a circular
-            # array it is zero indexed just the 0th index refers to the current
-            # entry which has not yet been written and thus cannot be read)
-
-            
-            # Resolve index to recall from history
-            history_index = 0
-
-            if len(name) <= 1:
-                # just the string ^ resolves to the last entry
-                history_index = 1
-            else:
-                try:
-                    history_index = int(name[1:])
-                except ValueError:
-                    # Invalid string
-                    return None
-
-            
-        else:
-            if name in self.config.sections() and name not in self.RESERVED_CONFIG_NAMES:
-                return name
-            else:
-                return None
-
-    def list_projects(self):
-        """
-        Lists all projects
-        """
-        # TODO: add paging
-        # TODO: add filters
-        for key in self.config:
-            if key not in self.RESERVED_CONFIG_NAMES:
-                print(f"{key}")
-
-    def add_project(self, name, path):
-        """
-        Adds a project to the project database
-        """
-        if name in self.config:
-            # Project already exists
-            pass
-        else:
-            self.config[name] = {
-                "path": path,
-                "active": True
-            }
-
-    def random_project(self):
-        project = random.choice([proj for proj in self.config.sections() if proj not in self.RESERVED_CONFIG_NAMES])
-
-        print(f"{project}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="ProgramManager",
-                                     description="Helps manage your projects")
+    # Create CLI
+    cli = CLI(prog="ProgramManager",
+              description="Helps manage your projects")
 
-    parser.add_argument("--version", action="version", version=f"%(prog)s v{VERSION}")
-    parser.add_argument("--config", metavar="PATH", default="~/.config/.pm", help="Set the config directory.")
+    # Basic Args
+    cli.add_argument(
+        "--version", action="version", version=f"%(prog)s v{VERSION}"
+    )
+    cli.add_argument(
+        "--config", metavar="PATH", default="~/.config/.pm",
+        help="Set the config directory."
+    )
 
-    parser_history_grp = parser.add_argument_group("History")
-    parser_history_grp.add_argument("--clear-history", action="store_true", help="Clear the program's history")
+    # History Args
+    cli_history_grp = cli.add_argument_group("History")
+    cli_history_grp.add_argument(
+        "--clear-history", action="store_true",
+        help="Clear the program's history"
+    )
 
-    subparsers = parser.add_subparsers(dest="cmd", title="Commands", help="Run --help on each subcommand for specific usage information")
+    # Subcommands
+    @cli.subcommand([
+        CLI.argument(
+            "-y", action="store_false", dest="confirm_install",
+            help="Do not prompt before installing updates"
+        )
+    ])
+    def update(args):
+        """Check for and install updates"""
+        pass
 
-    parser_update_cmd = subparsers.add_parser("update", help="Check for and install updates")
-    parser_update_cmd.add_argument("-y", action="store_false", dest="confirm_install", help="Do not prompt before installing updates")
+    # parser_list_cmd = subparsers.add_parser(
+    #     "list", help="List all the registered project"
+    # )
 
-    parser_list_cmd = subparsers.add_parser("list", help="List all the registered project")
+    # parser_add_cmd = subparsers.add_parser("add", help="Add a project")
+    # parser_add_cmd.add_argument(
+    #     "name", help="The name of the project. This name must be unique."
+    # )
+    # parser_add_cmd.add_argument("path", help="The path to the project.")
 
-    parser_add_cmd = subparsers.add_parser("add", help="Add a project")
-    parser_add_cmd.add_argument("name", help="The name of the project. This name must be unique.")
-    parser_add_cmd.add_argument("path", help="The path to the project.")
+    # parser_rand_cmd = subparsers.add_parser(
+    #     "random", help="Pick a random project"
+    # )
 
-    parser_rand_cmd = subparsers.add_parser("random", help="Pick a random project")
+    # parser_set_cmd = subparsers.add_parser("set", help="Set a value")
+    # parser_set_cmd.add_argument(
+    #     "project", help="The project to set the value for"
+    # )
+    # parser_set_cmd.add_argument(
+    #     "property", choices=["active", "inactive"],
+    #     help="The property value to set for the given project"
+    # )
 
-    parser_set_cmd = subparsers.add_parser("set", help="Set a value")
-    parser_set_cmd.add_argument("project", help="The project to set the value for")
-    parser_set_cmd.add_argument("property", choices=["active", "inactive"], help="The property value to set for the given project")
+    # parser_idea_cmd = subparsers.add_parser(
+    #     "ideas", help="Store ideas for future projects"
+    # )
+    # parser_set_cmd.add_argument(
+    #     "cmd", default="list", choices=["list", "add", "remove", "show"],
+    #     help="The subcommand to run on "
+    # )
 
-    args = parser.parse_args()
+    #parser_set_cmd.add_argument("list", help="List the project ideas")
+    #parser_set_cmd.add_argument("new", help="Add a new idea")
+    #parser_set_cmd.add_argument(
+    #    "remove", help="Remove an idea from the idea database"
+    #)
+    #parser_set_cmd.add_argument("show", help="Show a
 
-    with ProjectManager(args.config) as pm:
+    args = cli.parse_args()
+
+    with manager.ProjectManager(args.config) as pm:
         if args.cmd == "update":
             updater.update(args.confirm_install)
         elif args.cmd == "list":
