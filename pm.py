@@ -41,11 +41,20 @@ class CLI(argparse.ArgumentParser):
 
     def subcommand(self, args=[]):
         """
-        Create a subcommand along with a function to parse the args.
+        Create a subcommand along with a function to parse the args. This
+        function takes two arguments, a ProjectManager object, and the
+        Namespace returned from ArgumentParser.parse_args().
 
         The function should be named the same as the subcommand's name,
         prefixed with `subcmd_`. If this is not the case, then the function's
-        full name is used as teh subcommand name.
+        full name is used as the subcommand name.
+
+        A properly formed function declaration for a subcommand called `foo`
+        would look like
+
+        @cli.subcommand(...)
+        def subcmd_foo(pm, args):
+            ...
 
         The subcommand will use the function's docstring as the help string.
         The first line will be shown in the general --help option, and the
@@ -92,9 +101,6 @@ if __name__ == "__main__":
     cli = CLI(prog="ProgramManager",
               description="Helps manage your projects")
 
-    # TODO: add ProjectManager object here
-    pm = None
-
     # Basic Args
     cli.add_argument(
         "--version", action="version", version=f"%(prog)s v{VERSION}"
@@ -118,12 +124,12 @@ if __name__ == "__main__":
             help="Do not prompt before installing updates"
         )
     ])
-    def subcmd_update(args):
+    def subcmd_update(pm, args):
         """Check for and install updates"""
         updater.update(args.confirm_install)
 
     @cli.subcommand()
-    def subcmd_list(args):
+    def subcmd_list(pm, args):
         """List all the registered projects"""
         pm.list_projects()
 
@@ -132,12 +138,12 @@ if __name__ == "__main__":
             "name", help="The name of the project. This name must be unique."
         )
     ])
-    def subcmd_add(args):
+    def subcmd_add(pm, args):
         """Add a project"""
         pm.add_project(args.name, args.path)
 
     @cli.subcommand()
-    def subcmd_random(args):
+    def subcmd_random(pm, args):
         """Pick a random project"""
         pm.random_project()
 
@@ -149,7 +155,7 @@ if __name__ == "__main__":
             "property", help="The property value to set for the given project"
         )
     ])
-    def subcmd_set(args):
+    def subcmd_set(pm, args):
         """Set a property"""
         pass
 
@@ -160,7 +166,7 @@ if __name__ == "__main__":
             help="The idea subcommand to run"
         )
     ])
-    def subcmd_ideas(args):
+    def subcmd_ideas(pm, args):
         """Store ideas for future projects"""
         match args.ideacmd:
             case "list":
@@ -177,5 +183,6 @@ if __name__ == "__main__":
 
     args = cli.parse_args()
 
-    args.func(args)
+    with manager.ProjectManager(args.config) as pm:
+        args.func(pm, args)
 
