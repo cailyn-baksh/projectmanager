@@ -4,8 +4,10 @@ Module which checks for and installs updates for the project manager
 
 import subprocess
 
+REPO_URL = "http://github.com/cailyn-baksh/projectmanager.git"
+
 """
-git fetch {REPO_URL}"
+git fetch origin
 BRANCH = git rev-parse --abbrev-ref HEAD
 print(f"Checking for updates on branch {BRANCH})
 
@@ -24,16 +26,19 @@ def run_and_log(cmd, *args, **kwargs):
     return subprocess.run(cmd.split(' '), *args, **kwargs)
 
 
-def update(confirm=True):
+def update(check_only=False, confirm=True):
     """
     Checks for and installs updates
+
+    check_only  If true, check for updates and then exit.
+    confirm     If true, confirm before installing updates.
     """
 
     print("Checking for updates...")
 
     # Fetch remote changes
     run_and_log(
-        "git fetch",
+        f"git fetch {REPO_URL}",
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT
     )
@@ -55,8 +60,13 @@ def update(confirm=True):
     ).stdout.decode("utf-8").rstrip()
 
     if local_hash != remote_hash:
-        choice = input("Updates are available! Do you want to install them?"
-                       " [Y/n] ") if confirm else 'Y'
+        print("Updates are available!", end=' ')
+
+        if check_only:
+            return
+
+        choice = input("Do you want to install them? [Y/n] ") \
+            if confirm else 'Y'
 
         if choice.upper() != 'N':
             print("Installing Updates...")

@@ -122,6 +122,10 @@ if __name__ == "__main__":
         CLI.argument(
             "-y", action="store_false", dest="confirm_install",
             help="Do not prompt before installing updates"
+        ),
+        CLI.argument(
+            "--check", action="store_true",
+            help="Check for updates but don't install"
         )
     ])
     def subcmd_update(pm, args):
