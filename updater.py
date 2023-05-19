@@ -4,8 +4,6 @@ Module which checks for and installs updates for the project manager
 
 import subprocess
 
-REPO_URL = "https://github.com/cailyn-baksh/projectmanager.git"
-
 """
 git fetch {REPO_URL}"
 BRANCH = git rev-parse --abbrev-ref HEAD
@@ -19,10 +17,12 @@ if LOCAL != REMOTE:
     git pull {REPO_URL}
 """
 
+
 def run_and_log(cmd, *args, **kwargs):
     print(f" : {cmd}")
 
     return subprocess.run(cmd.split(' '), *args, **kwargs)
+
 
 def update(confirm=True):
     """
@@ -33,14 +33,14 @@ def update(confirm=True):
 
     # Fetch remote changes
     run_and_log(
-        f"git fetch {REPO_URL}",
+        "git fetch",
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT
     )
 
     # Get the current branch name
     branch = run_and_log(
-        f"git rev-parse --abbrev-ref HEAD",
+        "git rev-parse --abbrev-ref HEAD",
         capture_output=True
     ).stdout.decode("utf-8").rstrip()
 
@@ -55,7 +55,8 @@ def update(confirm=True):
     ).stdout.decode("utf-8").rstrip()
 
     if local_hash != remote_hash:
-        choice = input("Updates are available! Do you want to install them? [Y/n] ") if confirm else 'Y'
+        choice = input("Updates are available! Do you want to install them?"
+                       " [Y/n] ") if confirm else 'Y'
 
         if choice.upper() != 'N':
             print("Installing Updates...")
@@ -63,44 +64,6 @@ def update(confirm=True):
             run_and_log(f"git pull {REPO_URL}")
 
             print("Updates have been installed")
-        else:
-            print("Cancelling update.")
-    else:
-        print("Already up-to-date!")
-
-def _update():
-    """
-    Checks for and installs updates
-
-    https://github.com/cailyn-baksh/projectmanager.git
-    """
-
-    
-
-    UPDATE_CHECK_CMD = "git log -n 1 --pretty=format:'%H'".split(' ')
-    UPDATE_CHECKOUT_CMD = "git checkout main".split(' ')
-    UPDATE_INSTALL_CMD = "git pull".split(' ')
-
-    # TODO: add support for alternate branches
-    current_hash = subprocess.run(
-            UPDATE_CHECK_CMD + ["main"],
-            capture_output=True
-        ).stdout
-    remote_hash = subprocess.run(
-            UPDATE_CHECK_CMD + ["origin/main"],
-            capture_output=True
-        ).stdout
-
-    if current_hash != remote_hash:
-        choice = input("Updates are available! Do you want to install them? [Y/n] ")
-
-        if choice.upper() != 'N':
-            # Install updates
-
-            subprocess.run(UPDATE_CHECKOUT_CMD)
-            subprocess.run(UPDATE_INSTALL_CMD)
-
-            print("Done!")
         else:
             print("Cancelling update.")
     else:
